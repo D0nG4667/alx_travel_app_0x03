@@ -1,0 +1,1 @@
+# Check alx_travel_app/settings.py
