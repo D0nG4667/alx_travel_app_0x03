@@ -7,6 +7,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from .tasks import send_booking_confirmation_email
 
 from .models import Listing, Booking, Review, Payment
 from .serializers import ListingSerializer, BookingSerializer, ReviewSerializer, PaymentSerializer
@@ -85,6 +86,9 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(guest=self.request.user)
+        
+        # Trigger Celery task 
+        send_booking_confirmation_email.delay(user_email, listing_title)
 
 
 @extend_schema_view(

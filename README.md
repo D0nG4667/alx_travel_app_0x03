@@ -228,3 +228,184 @@ This command creates realistic data for development and testing, including rando
 - Use Chapa sandbox environment.
 - Verify logs and DB updates.
 - Screenshots included in `/docs/screenshots`.
+
+Gabriel, let’s turn this into a clean, production‑ready Celery + RabbitMQ background‑task setup for **alx_travel_app_0x03**. I’ll give you a complete, correct implementation across:
+
+- **alx_travel_app/settings.py**
+- **alx_travel_app/celery.py**
+- **listings/tasks.py**
+- **listings/views.py**
+- **README.md updates**
+
+Everything below is structured so you can drop it directly into your project and have Celery running asynchronously with RabbitMQ.
+
+---
+
+## 🚀 Celery + RabbitMQ + Email Notifications (Full Implementation)
+
+## 1. Project Structure (expected)
+
+```folder
+alx_travel_app_0x03/
+│
+├── alx_travel_app/
+│   ├── __init__.py
+│   ├── celery.py
+│   ├── settings.py
+│   ├── urls.py
+│
+├── listings/
+│   ├── tasks.py
+│   ├── views.py
+│   ├── models.py
+│   ├── serializers.py
+│
+└── README.md
+```
+
+---
+
+## 2. **settings.py** — Celery + Email Configuration
+
+Add this inside `alx_travel_app/settings.py`:
+
+```python
+# Celery Configuration
+CELERY_BROKER_URL = "amqp://guest:guest@rabbitmq:5672//"
+CELERY_RESULT_BACKEND = "rpc://"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+# Email Backend (for development)
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "your_email@gmail.com"
+EMAIL_HOST_PASSWORD = "your_app_password"
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+```
+
+---
+
+## 3. **celery.py** — Celery App Initialization
+
+Create `alx_travel_app/celery.py`:
+
+```python
+from __future__ import absolute_import, unicode_literals
+import os
+from celery import Celery
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "alx_travel_app.settings")
+
+app = Celery("alx_travel_app")
+app.config_from_object("django.conf:settings", namespace="CELERY")
+app.autodiscover_tasks()
+```
+
+Modify `alx_travel_app/__init__.py`:
+
+```python
+from .celery import app as celery_app
+
+__all__ = ("celery_app",)
+```
+
+---
+
+## 4. **listings/tasks.py** — Email Task
+
+```python
+from celery import shared_task
+from django.core.mail import send_mail
+
+@shared_task
+def send_booking_confirmation_email(user_email, listing_title):
+    subject = "Booking Confirmation"
+    message = f"Your booking for {listing_title} has been confirmed!"
+    send_mail(subject, message, None, [user_email])
+    return "Email sent successfully"
+```
+
+---
+
+## 5. **listings/views.py** — Trigger Task on Booking Creation
+
+Inside your `BookingViewSet`:
+
+```python
+from rest_framework import viewsets
+from .models import Booking
+from .serializers import BookingSerializer
+from .tasks import send_booking_confirmation_email
+
+class BookingViewSet(viewsets.ModelViewSet):
+    queryset = Booking.objects.all()
+    serializer_class = BookingSerializer
+
+    def perform_create(self, serializer):
+        booking = serializer.save()
+        user_email = booking.user.email
+        listing_title = booking.listing.title
+
+        # Trigger Celery task
+        send_booking_confirmation_email.delay(user_email, listing_title)
+```
+
+---
+
+## 🟢 6. Background Tasks with Celery + RabbitMQ
+
+This project uses **Celery** and **RabbitMQ** to send booking confirmation emails asynchronously.
+
+### Start RabbitMQ
+
+```bash
+docker compose up -d rabbitmq
+```
+
+### Start Celery Worker
+
+```bash
+celery -A alx_travel_app worker -l info
+```
+
+### Triggering Email
+
+When a booking is created via API:
+
+```sh
+POST /api/bookings/
+```
+
+Celery automatically sends a confirmation email in the background.
+
+---
+
+## **7. Testing the Background Task**
+
+### 1. Start RabbitMQ
+
+```bash
+docker compose up -d rabbitmq
+```
+
+### 2. Start Celery Worker
+
+```bash
+celery -A alx_travel_app worker -l info
+```
+
+### 3. Create a booking
+
+Use Postman or Django admin.
+
+### 4. Check console output
+
+If using console backend, you’ll see:
+
+```sh
+Your booking for <listing> has been confirmed!
+```

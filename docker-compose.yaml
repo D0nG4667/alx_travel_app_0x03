@@ -72,6 +72,40 @@ services:
         # Rebuild the image on changes to the `pyproject.toml`
         - action: rebuild
           path: ./pyproject.toml
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alxtravel-celery-0x00
+    command: uv run celery -A alx_travel_app worker -l info
+    env_file:
+      - .env
+    volumes:
+      - ./alx_travel_app:/app/alx_travel_app
+      - ./manage.py:/app/manage.py
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: alxtravel-celery-beat-0x00
+    command: uv run celery -A alx_travel_app beat -l info
+    env_file:
+      - .env
+    volumes:
+      - ./alx_travel_app:/app/alx_travel_app
+      - ./manage.py:/app/manage.py
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
     
   nginx:
     build: ./nginx
